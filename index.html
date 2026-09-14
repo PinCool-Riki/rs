@@ -29,7 +29,7 @@
 <body>
   <img id="card" alt="ROPPONGI SURVIVOR のスコアカード">
   <a id="save" class="save" download="roppongi_survivor_score.png" hidden>画像を保存</a>
-  <p class="hint" id="hint">長押し（PC は右クリック）でも保存できます。</p>
+  <p class="hint" id="hint">画像を長押ししても保存できます。</p>
 
 <script>
 // ゲーム側の版面（Assets/_Project/Scripts/Game/UI/ShareCard.cs）と 1 対 1。
@@ -77,11 +77,42 @@ function draw(art) {
   ctx.fillStyle = SCORE.fill;
   ctx.fillText(text, SCORE.centerX, SCORE.baselineY);
 
-  const url = canvas.toDataURL("image/png");
-  document.getElementById("card").src = url;
+  publish(canvas);
+}
+
+// **iOS では `<a download>` が効かない**（Safari はダウンロードを始めず、同じ絵を開くだけ）。
+// 使えるなら共有シート（Web Share API のファイル共有）に回す —— そこから「写真に保存」できる。
+// 貼る絵も data: ではなく blob: にしておく（長押しの「写真に追加」がこちらの方が通る）。
+function publish(canvas) {
+  const card = document.getElementById("card");
   const save = document.getElementById("save");
-  save.href = url;
-  save.hidden = false;
+  const hint = document.getElementById("hint");
+
+  const show = (blob, url) => {
+    card.src = url;
+    save.hidden = false;
+
+    const file = blob && window.File ? new File([blob], "roppongi_survivor_score.png", { type: "image/png" }) : null;
+    if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+      save.textContent = "画像を保存・共有";
+      save.removeAttribute("download");
+      save.href = "#";
+      save.addEventListener("click", event => {
+        event.preventDefault();
+        navigator.share({ files: [file] }).catch(() => {});
+      });
+      hint.textContent = "「写真に保存」を選んでください。画像の長押しでも保存できます。";
+      return;
+    }
+
+    save.href = url;
+  };
+
+  if (canvas.toBlob) {
+    canvas.toBlob(blob => show(blob, blob ? URL.createObjectURL(blob) : canvas.toDataURL("image/png")), "image/png");
+  } else {
+    show(null, canvas.toDataURL("image/png"));
+  }
 }
 
 function fail(message) {
